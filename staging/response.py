@@ -10,10 +10,3 @@ class ResponseDetail(BaseModel):
     status: str
     message: str
     details: Optional[Union[str, dict, list]] = None
-
-class SuccessLoginResponse(BaseModel):
-    status: str
-    message: str
-    access_token: str
-    token_type: str
-    expires_in: str

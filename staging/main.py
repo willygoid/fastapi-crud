@@ -4,6 +4,7 @@ from .models import Base
 from .connection import engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 Base.metadata.create_all(bind=engine)
@@ -37,4 +38,22 @@ async def http_exception_handler(request: Request, exc: HTTPException):
             "status": "failed",
             "message": exc.detail
         }
+    )
+
+@app.exception_handler(StarletteHTTPException)
+async def custom_http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code == 404:
+        return JSONResponse(
+            status_code=404,
+            content={"status": "failed", "message": "There's no route to the request"}
+        )
+    elif exc.status_code == 405:  # Method Not Allowed
+        return JSONResponse(
+            status_code=405,
+            content={"status": "failed", "message": "Method not allowed"}
+        )
+    # Handle other HTTP exceptions if necessary
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"status": "failed", "message": str(exc.detail)}
     )
