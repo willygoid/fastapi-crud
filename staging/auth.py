@@ -30,7 +30,7 @@ def create_access_token(data: Dict[str, str], expires_delta: timedelta = None):
         expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt
+    return encoded_jwt, expire
 
 def get_user(db: Session, credential: str):
     return db.query(User).filter((User.username == credential) | (User.email == credential)).first()
@@ -56,7 +56,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
             raise credentials_exception
     except JWTError:
         raise credentials_exception
-    user = get_user(db, username=username)
+    user = get_user(db, credential=username)
     if user is None:
         raise credentials_exception
     return user

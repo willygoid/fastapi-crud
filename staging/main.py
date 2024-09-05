@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from .route import router as auth_router
 from .models import Base
 from .connection import engine
@@ -26,5 +26,15 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "status": "failed",
             "message": "Validation error",
             "details": details.strip()
+        }
+    )
+
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request: Request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "status": "failed",
+            "message": exc.detail
         }
     )
