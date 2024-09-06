@@ -5,6 +5,7 @@ from .connection import engine
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from .seeder import seeder
 
 
 Base.metadata.create_all(bind=engine)
@@ -12,6 +13,9 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 app.include_router(auth_router, prefix="/api")
+
+#Seed The DB
+seeder()
 
 #Custom Error Handling
 @app.exception_handler(RequestValidationError)
@@ -45,7 +49,7 @@ async def custom_http_exception_handler(request: Request, exc: StarletteHTTPExce
     if exc.status_code == 404:
         return JSONResponse(
             status_code=404,
-            content={"status": "failed", "message": "There's no route to the request"}
+            content={"status": "failed", "message": "There's no route to request"}
         )
     elif exc.status_code == 405:  # Method Not Allowed
         return JSONResponse(

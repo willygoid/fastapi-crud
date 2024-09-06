@@ -20,8 +20,19 @@ class User(Base):
     username = Column(String(50), unique=True, index=True, nullable=False)
     email = Column(String(100), unique=True, index=True, nullable=False)
     hashed_password = Column(String(256), nullable=False)
-    role = Column(String(12), nullable=False)
+    role = Column(String(12), nullable=False, default=RoleEnum.user)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'firstname': self.firstname,
+            'lastname': self.lastname,
+            'username': self.username,
+            'email': self.email,
+            'role': self.role,
+            'created_at': self.created_at.isoformat()  # Format datetime as ISO string
+        }
 
 
 

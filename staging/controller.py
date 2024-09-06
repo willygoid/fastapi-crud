@@ -20,7 +20,7 @@ def RegisterController(request, db: Session):
         new_user = User(
             firstname=request.firstname,
             lastname=request.lastname,
-            username=request.username,
+            username=str(request.username).lower(),
             email=request.email,
             hashed_password=hashed_password,
             role=request.role,
@@ -36,7 +36,7 @@ def RegisterController(request, db: Session):
         return Response(status="success", message="Successfully created user")
     except Exception as e:
         # Handle unexpected errors
-        return ResponseDetail(status="failed", message="Failed to create user", details=str(e))
+        return ResponseDetail(status="failed", message="Failed to create user"+str(e), details=str(e))
 
 
 def LoginController(request, db: Session):
@@ -50,7 +50,7 @@ def LoginController(request, db: Session):
     return ResponseDetail(status="success", message="Successfully logged in", details=authdata)
 
 
-def UserDetailsContoller(authUser):
+def AuthUserController(authUser): #details info of authenticated user
     if authUser is None:
         return Response(status="failed", message="User not authenticated")
 
@@ -66,10 +66,27 @@ def UserDetailsContoller(authUser):
     return ResponseDetail(status="success", message="User data retrieved successfully", details=user_data)
 
 
-def UserCreateController(request, db: Session, current_user):
+def UserListController(db: Session, auth_user):
+    if auth_user is None:
+        return Response(status="failed", message="User not authenticated")
+
+    try:
+        users = db.query(User).all()
+        if not users:
+            return Response(status="failed", message="No users found")
+
+        return ResponseDetail(status="success", message="Users fetched successfully", details=[user.to_dict() for user in users])
+    except Exception as e:
+        return Response(status="failed", message="An unexpected error occurred: "+str(e))
+
+def UserCreateController(request, db: Session, auth_user):
     # Ensure the user is authenticated
-    if current_user is None:
+    if auth_user is None:
         return ResponseDetail(status="failed", message="User not authenticated", details="You need to be logged in to create a user")
+
+    # Check if the authenticated user has the required role
+    if auth_user.role not in ['superadmin', 'admin']:
+        return ResponseDetail(status="failed", message="Insufficient permissions", details="Youre not allowed to do this action")
 
     # Check if the username or email already exists
     db_user = db.query(User).filter(
@@ -86,7 +103,7 @@ def UserCreateController(request, db: Session, current_user):
         new_user = User(
             firstname=request.firstname,
             lastname=request.lastname,
-            username=request.username,
+            username=str(request.username).lower(),
             email=request.email,
             hashed_password=hashed_password,
             role=request.role,
@@ -105,26 +122,37 @@ def UserCreateController(request, db: Session, current_user):
         return ResponseDetail(status="failed", message="Failed to create user", details=str(e))
 
 
-def UserEditController(user_id: int, request, db: Session, current_user):
+def UserEditController(username: str, request, db: Session, auth_user):
     # Ensure the user is authenticated
-    if current_user is None:
+    if auth_user is None:
         return ResponseDetail(status="failed", message="User not authenticated", details="You need to be logged in to edit a user")
 
     # Fetch the user to be updated
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.username == username).first()
 
     if not user:
-        return ResponseDetail(status="failed", message="User not found", details=f"User with ID {user_id} does not exist")
+        return ResponseDetail(status="failed", message="User not found", details=f"User with ID {username} does not exist")
 
     # Update the user's information
     user.firstname = request.firstname
     user.lastname = request.lastname
-    user.username = request.username
-    user.email = request.email
+
+    # Change email if provided
+    if request.email:
+        CheckEmail = db.query(User).filter(User.email == request.email).first()
+        if CheckEmail and CheckEmail.username != username:
+            return ResponseDetail(status="failed", message="Email already taken", details="Choose another email to continue")
+        user.email = request.email
 
     if request.password:
         # Hash the new password if provided
         user.hashed_password = get_password_hash(request.password)
+
+    if request.role:
+        if auth_user.role not in ['superadmin', 'admin']:
+            return ResponseDetail(status="failed", message="Insufficient permissions", details="Youre not allowed to do this action")
+        else:
+            user.role = request.role
 
     try:
         db.commit()
@@ -133,16 +161,17 @@ def UserEditController(user_id: int, request, db: Session, current_user):
     except Exception as e:
         return ResponseDetail(status="failed", message="Failed to update user", details=str(e))
 
-def UserDeleteController(user_id: int, db: Session, current_user):
+
+def UserDeleteController(username: str, db: Session, auth_user):
     # Ensure the user is authenticated
-    if current_user is None:
+    if auth_user is None:
         return ResponseDetail(status="failed", message="User not authenticated", details="You need to be logged in to delete a user")
 
     # Fetch the user to be deleted
-    user = db.query(User).filter(User.id == user_id).first()
+    user = db.query(User).filter(User.username == username).first()
 
     if not user:
-        return ResponseDetail(status="failed", message="User not found", details=f"User with ID {user_id} does not exist")
+        return ResponseDetail(status="failed", message="User not found", details=f"User with ID {username} does not exist")
 
     try:
         db.delete(user)
@@ -151,3 +180,22 @@ def UserDeleteController(user_id: int, db: Session, current_user):
     except Exception as e:
         return ResponseDetail(status="failed", message="Failed to delete user", details=str(e))
 
+
+def UserDetailsController(username: str, db: Session, auth_user):
+    if auth_user is None:
+        return Response(status="failed", message="User not authenticated")
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        return Response(status="failed", message="User not found")
+    try:
+        user_data = {
+            "firstname": user.firstname,
+            "lastname": user.lastname,
+            "username": user.username,
+            "email": user.email,
+            "role": user.role,
+            "registered": user.created_at
+        }
+        return ResponseDetail(status="success", message="User data retrieved successfully", details=user_data)
+    except Exception as e:
+        return ResponseDetail(status="failed", message="Failed to fetch user", details=str(e))
